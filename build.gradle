@@ -1,0 +1,92 @@
+plugins {
+    id 'dev.architectury.loom-no-remap' version '1.17-SNAPSHOT' apply false
+    id 'architectury-plugin' version '3.5-SNAPSHOT'
+    id 'com.gradleup.shadow' version '9.6.1' apply false
+}
+
+architectury {
+    minecraft = project.minecraft_version
+}
+
+allprojects {
+    group = rootProject.maven_group
+    version = rootProject.mod_version
+
+    repositories {
+        maven {
+            name = 'ParchmentMC'
+            url = 'https://maven.parchmentmc.org'
+        }
+    }
+}
+
+
+subprojects {
+    apply plugin: 'dev.architectury.loom-no-remap'
+    apply plugin: 'architectury-plugin'
+    apply plugin: 'maven-publish'
+    apply plugin: 'com.gradleup.shadow'
+
+    base {
+        archivesName = "$rootProject.archives_name-$project.name"
+    }
+
+    repositories {
+    }
+
+    dependencies {
+        // Minecraft 26.1+ is unobfuscated, no mappings are needed anymore.
+        minecraft "com.mojang:minecraft:$rootProject.minecraft_version"
+    }
+
+    if (project.name in ['fabric', 'neoforge']) {
+        loom.runs {
+            configureEach {
+                generateRunConfig.set(true)
+                appendProjectPathToDisplayName.set(false)
+                ideConfigFolder.set(project.name == 'fabric' ? 'Fabric' : 'NeoForge')
+            }
+
+            def standardClient = getByName('client')
+            standardClient.displayName.set("Client:${project.name}")
+
+            named('server') {
+                displayName.set("Server:${project.name}")
+            }
+        }
+    }
+
+    java {
+        withSourcesJar()
+
+        sourceCompatibility = JavaVersion.VERSION_25
+        targetCompatibility = JavaVersion.VERSION_25
+
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        it.options.encoding = 'UTF-8'
+        it.options.release = 25
+        it.options.compilerArgs += ['-Xmaxerrs', '2000']
+    }
+
+    tasks.withType(AbstractArchiveTask).configureEach {
+        zip64 = true
+    }
+
+    // Configure Maven publishing.
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                artifactId = base.archivesName.get()
+                from components.java
+            }
+        }
+
+        repositories {
+        }
+    }
+}
