@@ -1,6 +1,4 @@
-plugins {
-    id 'com.gradleup.shadow'
-}
+apply from: rootProject.file('gradle/shared.gradle')
 
 architectury {
     platformSetupLoomIde()
@@ -22,20 +20,29 @@ configurations {
     }
 }
 
+// The common node for the same Minecraft version, e.g. :common:26.2.
+def commonNode = ":common:${stonecutter.current.project}"
+
 dependencies {
     implementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
-    implementation "net.fabricmc.fabric-api:fabric-api:$rootProject.fabric_api_version"
-    implementation "dev.architectury:architectury-fabric:$rootProject.architectury_api_version"
+    implementation "net.fabricmc.fabric-api:fabric-api:$project.fabric_api_version"
+    implementation "dev.architectury:architectury-fabric:$project.architectury_api_version"
 
-    common(project(path: ':common')) { transitive false }
-    shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
+    common(project(path: commonNode)) { transitive false }
+    shadowBundle project(path: commonNode, configuration: 'transformProductionFabric')
 }
 
 processResources {
-    inputs.property 'version', project.version
+    def props = [
+            version                 : project.version,
+            minecraft_version       : project.minecraft_version,
+            fabric_loader_version   : rootProject.fabric_loader_version,
+            architectury_api_version: project.architectury_api_version,
+    ]
+    inputs.properties props
 
     filesMatching('fabric.mod.json') {
-        expand version: project.version
+        expand props
     }
 }
 

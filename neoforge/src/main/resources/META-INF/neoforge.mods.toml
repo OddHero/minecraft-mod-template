@@ -14,20 +14,20 @@ Example mod description.
 [[dependencies.examplemod]]
 modId = "neoforge"
 type = "required"
-versionRange = "[26.2,)"
+versionRange = "[${minecraft_version},)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.examplemod]]
 modId = "minecraft"
 type = "required"
-versionRange = "[26.2,)"
+versionRange = "[${minecraft_version},)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.examplemod]]
 modId = "architectury"
 type = "required"
-versionRange = "[21.1.9,)"
+versionRange = "[${architectury_api_version},)"
 ordering = "AFTER"
 side = "BOTH"

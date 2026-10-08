@@ -1,0 +1,30 @@
+plugins {
+    id 'dev.kikugie.stonecutter'
+    // Loaded once here so all version nodes share one copy of each plugin.
+    id 'dev.architectury.loom-no-remap' apply false
+    id 'architectury-plugin' apply false
+    id 'com.gradleup.shadow' apply false
+}
+
+// The version whose code is active in src/. The "Set active project to ..." tasks rewrite this line.
+stonecutter.active '26.2'
+
+stonecutter.parameters {
+    // In code, `/*$ minecraft*/ "26.2";` becomes the node's Minecraft version.
+    swaps.put('minecraft', "\"${current.version}\";")
+}
+
+// One folder with the release jar of every loader and Minecraft version: build/libs/.
+tasks.register('collectJars', Copy) {
+    group = 'build'
+    description = 'Builds the release jars of all loaders and Minecraft versions and copies them to build/libs.'
+
+    subprojects.findAll { it.parent?.name in ['fabric', 'neoforge'] }.each { node ->
+        dependsOn "${node.path}:shadowJar"
+        from(node.layout.buildDirectory.dir('libs')) {
+            include '*.jar'
+            exclude '*-raw.jar', '*-sources.jar'
+        }
+    }
+    into layout.buildDirectory.dir('libs')
+}

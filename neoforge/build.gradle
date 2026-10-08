@@ -1,6 +1,4 @@
-plugins {
-    id 'com.gradleup.shadow'
-}
+apply from: rootProject.file('gradle/shared.gradle')
 
 architectury {
     platformSetupLoomIde()
@@ -29,19 +27,27 @@ configurations {
     }
 }
 
-dependencies {
-    neoForge "net.neoforged:neoforge:$rootProject.neoforge_version"
-    implementation "dev.architectury:architectury-neoforge:$rootProject.architectury_api_version"
+// The common node for the same Minecraft version, e.g. :common:26.2.
+def commonNode = ":common:${stonecutter.current.project}"
 
-    common(project(path: ':common')) { transitive false }
-    shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
+dependencies {
+    neoForge "net.neoforged:neoforge:$project.neoforge_version"
+    implementation "dev.architectury:architectury-neoforge:$project.architectury_api_version"
+
+    common(project(path: commonNode)) { transitive false }
+    shadowBundle project(path: commonNode, configuration: 'transformProductionNeoForge')
 }
 
 processResources {
-    inputs.property 'version', project.version
+    def props = [
+            version                 : project.version,
+            minecraft_version       : project.minecraft_version,
+            architectury_api_version: project.architectury_api_version,
+    ]
+    inputs.properties props
 
     filesMatching('META-INF/neoforge.mods.toml') {
-        expand version: project.version
+        expand props
     }
 }
 

@@ -1,0 +1,96 @@
+// Shared setup for every Minecraft version node of common, fabric and neoforge.
+// Each branch's build.gradle applies this first. The node's Minecraft version is stonecutter.current.version.
+
+def loader = project.parent.name
+
+// Per-version dependency versions live in versions/<version>/gradle.properties.
+def versionProperties = new Properties()
+rootProject.file("versions/${stonecutter.current.project}/gradle.properties").withInputStream { versionProperties.load(it) }
+versionProperties.each { key, value -> project.ext.set(key, value) }
+
+// All nodes of one Minecraft version share the project name (e.g. "26.2"). Gradle identifies a project
+// dependency by group:name:version, so without a per-loader group :fabric:26.2 would resolve
+// :common:26.2 to itself. The publication below restores the plain group.
+group = "${rootProject.maven_group}.${loader}"
+// The Minecraft version is part of the version, so the jars of all versions can sit side by side.
+version = "${rootProject.mod_version}+${project.minecraft_version}"
+
+apply plugin: 'dev.architectury.loom-no-remap'
+apply plugin: 'architectury-plugin'
+apply plugin: 'maven-publish'
+// Only the loader jars bundle common. A shadow jar of common would just copy its whole classpath.
+if (loader in ['fabric', 'neoforge']) {
+    apply plugin: 'com.gradleup.shadow'
+}
+
+architectury {
+    minecraft = project.minecraft_version
+}
+
+base {
+    archivesName = "$rootProject.archives_name-$loader"
+}
+
+repositories {
+    maven {
+        name = 'ParchmentMC'
+        url = 'https://maven.parchmentmc.org'
+    }
+}
+
+dependencies {
+    // Minecraft 26.1+ is unobfuscated, no mappings are needed anymore.
+    minecraft "com.mojang:minecraft:$project.minecraft_version"
+}
+
+if (loader in ['fabric', 'neoforge']) {
+    loom.runs {
+        configureEach {
+            generateRunConfig.set(true)
+            appendProjectPathToDisplayName.set(false)
+            ideConfigFolder.set(loader == 'fabric' ? 'Fabric' : 'NeoForge')
+        }
+
+        def standardClient = getByName('client')
+        standardClient.displayName.set("Client:${loader}:${stonecutter.current.version}")
+
+        named('server') {
+            displayName.set("Server:${loader}:${stonecutter.current.version}")
+        }
+    }
+}
+
+java {
+    withSourcesJar()
+
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = 'UTF-8'
+    it.options.release = 25
+    it.options.compilerArgs += ['-Xmaxerrs', '2000']
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+    zip64 = true
+}
+
+// Configure Maven publishing.
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = rootProject.maven_group
+            artifactId = base.archivesName.get()
+            from components.java
+        }
+    }
+
+    repositories {
+    }
+}
