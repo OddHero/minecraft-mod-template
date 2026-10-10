@@ -81,13 +81,48 @@ tasks.withType(AbstractArchiveTask).configureEach {
     zip64 = true
 }
 
+if (loader in ['fabric', 'neoforge']) {
+    // The loader sources jar also carries common's sources, where nearly all code lives. They come from the common
+    // node's own sources jar: for an inactive version only that task knows to generate them first.
+    def commonSourcesJar = ":common:${stonecutter.current.project}:sourcesJar"
+    tasks.named('sourcesJar') {
+        dependsOn commonSourcesJar
+        from({ zipTree(project(commonSourcesJar - ':sourcesJar').tasks.named('sourcesJar').get().archiveFile) }) {
+            exclude 'META-INF/MANIFEST.MF'
+        }
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+}
+
 // Configure Maven publishing.
 publishing {
     publications {
         mavenJava(MavenPublication) {
             groupId = rootProject.maven_group
             artifactId = base.archivesName.get()
-            from components.java
+            if (loader == 'common') {
+                from components.java
+            } else {
+                // The loader jar consumers need is the shadow jar (it bundles common).
+                // components.java would point Gradle consumers at the "-raw" jar, which lacks common.
+                artifact(tasks.named('shadowJar'))
+                artifact(tasks.named('sourcesJar'))
+                // Without a component the POM lists no dependencies; name the mods this one requires at runtime.
+                pom.withXml {
+                    def dependencies = asNode().appendNode('dependencies')
+                    def add = { String group, String artifact, String version ->
+                        def dependency = dependencies.appendNode('dependency')
+                        dependency.appendNode('groupId', group)
+                        dependency.appendNode('artifactId', artifact)
+                        dependency.appendNode('version', version)
+                        dependency.appendNode('scope', 'runtime')
+                    }
+                    add('dev.architectury', "architectury-$loader", project.architectury_api_version)
+                    if (loader == 'fabric') {
+                        add('net.fabricmc.fabric-api', 'fabric-api', project.fabric_api_version)
+                    }
+                }
+            }
         }
     }
 
