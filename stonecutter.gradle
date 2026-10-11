@@ -1,6 +1,7 @@
 plugins {
     id 'dev.kikugie.stonecutter'
     // Loaded once here so all version nodes share one copy of each plugin.
+    id 'dev.architectury.loom' apply false
     id 'dev.architectury.loom-no-remap' apply false
     id 'architectury-plugin' apply false
     id 'com.gradleup.shadow' apply false
@@ -20,10 +21,11 @@ tasks.register('collectJars', Copy) {
     description = 'Builds the release jars of all loaders and Minecraft versions and copies them to build/libs.'
 
     subprojects.findAll { it.parent?.name in ['fabric', 'neoforge'] }.each { node ->
-        dependsOn "${node.path}:shadowJar"
+        // releaseJar is the shadow jar on unobfuscated versions and the remapped shadow jar on obfuscated ones.
+        dependsOn "${node.path}:releaseJar"
         from(node.layout.buildDirectory.dir('libs')) {
             include '*.jar'
-            exclude '*-raw.jar', '*-sources.jar'
+            exclude '*-raw.jar', '*-sources.jar', '*-dev-shadow.jar'
         }
     }
     into layout.buildDirectory.dir('libs')

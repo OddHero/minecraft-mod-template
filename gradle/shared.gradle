@@ -8,6 +8,17 @@ def versionProperties = new Properties()
 rootProject.file("versions/${stonecutter.current.project}/gradle.properties").withInputStream { versionProperties.load(it) }
 versionProperties.each { key, value -> project.ext.set(key, value) }
 
+// Minecraft is obfuscated up to 1.21.11 and unobfuscated from 26.1 on. Obfuscated versions need the remapping Loom,
+// Mojang's mappings and a remapped release jar; unobfuscated versions need none of that.
+def unobfuscated = stonecutter.eval(stonecutter.current.version, '>=26.1')
+def javaVersion = (project.java_version as String).toInteger()
+ext.unobfuscated = unobfuscated
+// Remapping Loom puts mod dependencies on mod* configurations; without remapping they are plain configurations.
+ext.modImplementation = unobfuscated ? 'implementation' : 'modImplementation'
+ext.modApi = unobfuscated ? 'api' : 'modApi'
+// A loader depends on the common node of the same version: in its remapped (named) form when Loom remaps.
+ext.commonNamed = { String path -> unobfuscated ? project.project(path) : project.dependencies.project(path: path, configuration: 'namedElements') }
+
 // All nodes of one Minecraft version share the project name (e.g. "26.2"). Gradle identifies a project
 // dependency by group:name:version, so without a per-loader group :fabric:26.2 would resolve
 // :common:26.2 to itself. The publication below restores the plain group.
@@ -15,7 +26,8 @@ group = "${rootProject.maven_group}.${loader}"
 // The Minecraft version is part of the version, so the jars of all versions can sit side by side.
 version = "${rootProject.mod_version}+${project.minecraft_version}"
 
-apply plugin: 'dev.architectury.loom-no-remap'
+// loom.platform (neoforge/versions/<version>/gradle.properties) must be set before Loom is applied.
+apply plugin: unobfuscated ? 'dev.architectury.loom-no-remap' : 'dev.architectury.loom'
 apply plugin: 'architectury-plugin'
 apply plugin: 'maven-publish'
 // Only the loader jars bundle common. A shadow jar of common would just copy its whole classpath.
@@ -39,8 +51,11 @@ repositories {
 }
 
 dependencies {
-    // Minecraft 26.1+ is unobfuscated, no mappings are needed anymore.
     minecraft "com.mojang:minecraft:$project.minecraft_version"
+    if (!unobfuscated) {
+        // Mojang's names at development time; Loom remaps the release jar to the loader's runtime names.
+        mappings loom.officialMojangMappings()
+    }
 }
 
 if (loader in ['fabric', 'neoforge']) {
@@ -63,17 +78,18 @@ if (loader in ['fabric', 'neoforge']) {
 java {
     withSourcesJar()
 
-    sourceCompatibility = JavaVersion.VERSION_25
-    targetCompatibility = JavaVersion.VERSION_25
+    // Java 21 for Minecraft 1.21.x, 25 for 26.x (versions/<version>/gradle.properties: java_version).
+    sourceCompatibility = JavaVersion.toVersion(javaVersion)
+    targetCompatibility = JavaVersion.toVersion(javaVersion)
 
     toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
+        languageVersion = JavaLanguageVersion.of(javaVersion)
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
     it.options.encoding = 'UTF-8'
-    it.options.release = 25
+    it.options.release = javaVersion
     it.options.compilerArgs += ['-Xmaxerrs', '2000']
 }
 
@@ -92,6 +108,26 @@ if (loader in ['fabric', 'neoforge']) {
         }
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
+
+    // The jar players install: the shadow jar (common bundled), remapped to the loader's runtime names when Loom
+    // remaps. Without remapping, the shadow jar itself is the release jar.
+    tasks.named('shadowJar') {
+        archiveClassifier = unobfuscated ? '' : 'dev-shadow'
+    }
+    if (!unobfuscated) {
+        tasks.named('remapJar') {
+            inputFile.set(tasks.named('shadowJar').flatMap { it.archiveFile })
+            dependsOn 'shadowJar'
+            archiveClassifier = ''
+        }
+    }
+    ext.releaseJarTask = tasks.named(unobfuscated ? 'shadowJar' : 'remapJar')
+    tasks.register('releaseJar') {
+        group = 'build'
+        description = 'Builds the jar to publish and install for this loader and Minecraft version.'
+        dependsOn releaseJarTask
+    }
+    tasks.named('assemble') { dependsOn 'releaseJar' }
 }
 
 // Configure Maven publishing.
@@ -103,9 +139,9 @@ publishing {
             if (loader == 'common') {
                 from components.java
             } else {
-                // The loader jar consumers need is the shadow jar (it bundles common).
+                // The loader jar consumers need is the release jar (it bundles common).
                 // components.java would point Gradle consumers at the "-raw" jar, which lacks common.
-                artifact(tasks.named('shadowJar'))
+                artifact(releaseJarTask)
                 artifact(tasks.named('sourcesJar'))
                 // Without a component the POM lists no dependencies; name the mods this one requires at runtime.
                 pom.withXml {

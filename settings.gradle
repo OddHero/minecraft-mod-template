@@ -8,7 +8,10 @@ pluginManagement {
     }
 
     // Every Minecraft version node applies these plugins, so their versions live here, once.
+    // Both Loom IDs come from the same artifact: obfuscated versions (up to 1.21.11) use the remapping
+    // 'dev.architectury.loom', unobfuscated ones (26.1+) 'dev.architectury.loom-no-remap'. See gradle/shared.gradle.
     plugins {
+        id 'dev.architectury.loom' version '1.17-SNAPSHOT'
         id 'dev.architectury.loom-no-remap' version '1.17-SNAPSHOT'
         id 'architectury-plugin' version '3.5-SNAPSHOT'
         id 'com.gradleup.shadow' version '9.6.1'
@@ -30,7 +33,9 @@ stonecutter {
 
     create(getRootProject()) {
         // Each version needs versions/<version>/gradle.properties with its dependency versions.
-        versions '26.1.2', '26.2', '26.3'
+        // One node per Architectury line, on the line's newest stable patch. The jars declare the whole group
+        // (minecraft_range_* in the version's gradle.properties), so together they cover 1.21 to 26.3.
+        versions '1.21.1', '1.21.3', '1.21.4', '1.21.5', '1.21.8', '1.21.10', '1.21.11', '26.1.2', '26.2', '26.3'
         // The version the sources in src/ are written for when committed.
         vcsVersion = '26.2'
 

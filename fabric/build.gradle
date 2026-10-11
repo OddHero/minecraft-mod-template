@@ -24,18 +24,20 @@ configurations {
 def commonNode = ":common:${stonecutter.current.project}"
 
 dependencies {
-    implementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
-    implementation "net.fabricmc.fabric-api:fabric-api:$project.fabric_api_version"
-    implementation "dev.architectury:architectury-fabric:$project.architectury_api_version"
+    // modImplementation on obfuscated versions, implementation on unobfuscated ones (see gradle/shared.gradle).
+    add(project.modImplementation, "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version")
+    add(project.modImplementation, "net.fabricmc.fabric-api:fabric-api:$project.fabric_api_version")
+    add(project.modImplementation, "dev.architectury:architectury-fabric:$project.architectury_api_version")
 
-    common(project(path: commonNode)) { transitive false }
+    common(commonNamed(commonNode)) { transitive false }
     shadowBundle project(path: commonNode, configuration: 'transformProductionFabric')
 }
 
 processResources {
     def props = [
             version                 : project.version,
-            minecraft_version       : project.minecraft_version,
+            minecraft_range         : project.minecraft_range_fabric,
+            java_version            : project.java_version,
             fabric_loader_version   : rootProject.fabric_loader_version,
             architectury_api_version: project.architectury_api_version,
     ]
@@ -52,8 +54,5 @@ jar {
 
 shadowJar {
     configurations = [project.configurations.shadowBundle]
-    archiveClassifier = ''
     mergeServiceFiles()
 }
-
-assemble.dependsOn shadowJar

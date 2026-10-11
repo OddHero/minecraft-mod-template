@@ -1,5 +1,5 @@
 modLoader = "javafml"
-loaderVersion = "[2,)"
+loaderVersion = "[1,)"
 license = "GNU LGPL 3.0"
 
 [[mods]]
@@ -14,14 +14,14 @@ Example mod description.
 [[dependencies.examplemod]]
 modId = "neoforge"
 type = "required"
-versionRange = "[${minecraft_version},)"
+versionRange = "${neoforge_range}"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.examplemod]]
 modId = "minecraft"
 type = "required"
-versionRange = "[${minecraft_version},)"
+versionRange = "${minecraft_range}"
 ordering = "NONE"
 side = "BOTH"
 
