@@ -73,6 +73,24 @@ if (loader in ['fabric', 'neoforge']) {
             displayName.set("Server:${loader}:${stonecutter.current.version}")
         }
     }
+
+    tasks.named('ideaSyncTask').configure {
+        doLast {
+            def runConfigsDir = rootProject.file('.idea/runConfigurations')
+            if (runConfigsDir.exists()) {
+                def oldModule = "${rootProject.name}.${loader}.${project.name}.main"
+                def newModule = "${rootProject.name}.${loader}.${project.name.replace('.', '_')}.main"
+                runConfigsDir.listFiles().each { file ->
+                    if (file.name.endsWith('.xml')) {
+                        def text = file.text
+                        if (text.contains(oldModule)) {
+                            file.text = text.replace(oldModule, newModule)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 java {
