@@ -1,6 +1,25 @@
 # Example Mod (universal)
 
-One source tree for every Minecraft version from **1.21 to 26.3** on Fabric and NeoForge (Architectury), built with [Stonecutter](https://stonecutter.kikugie.dev/) 0.9.8 and Architectury Loom 1.17.
+> **Built on [Stonecutter](https://stonecutter.kikugie.dev/).** This template is a Stonecutter multi-version project: one source tree, one Gradle project per Minecraft version, and version-specific code written as comment conditions. Learn Stonecutter first; everything below builds on it.
+
+One source tree for every Minecraft version from **1.21 to 26.3** on Fabric and NeoForge ([Architectury](https://docs.architectury.dev/)), built with [Stonecutter](https://stonecutter.kikugie.dev/) 0.9.8 and Architectury Loom 1.17.
+
+## Built on Stonecutter
+
+[Stonecutter](https://stonecutter.kikugie.dev/) by KikuGie is the Gradle plugin that makes the multi-version build possible:
+
+- it creates one Gradle project (a node) per Minecraft version and loader, for example `:fabric:1.21.4`;
+- it turns comment conditions such as `//? if >=1.21.11 {` into the right code for each version;
+- it switches the version the sources in `src/` are written for (`./gradlew "Set active project to <mc>"`).
+
+| | |
+|---|---|
+| Website and documentation | https://stonecutter.kikugie.dev/ (wiki: https://stonecutter.kikugie.dev/wiki/) |
+| Source code | https://codeberg.org/stonecutter/stonecutter |
+| Documentation source | https://codeberg.org/stonecutter/docs |
+| Version used here | 0.9.8 (`settings.gradle`), Groovy DSL (`dev.kikugie.stonecutter.hard_mode=true` in `gradle.properties`) |
+
+What this template adds on top of Stonecutter is the Architectury multi-loader layout (`common`, `fabric` and `neoforge` as Stonecutter branches), the switch between remapping and non-remapping Loom across the 1.21.x / 26.x boundary, and per-version dependency and metadata handling.
 
 ## Versions
 
