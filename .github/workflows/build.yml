@@ -1,0 +1,108 @@
+name: Build and release
+
+# Builds the release jar of every loader and Minecraft version on each push and pull request.
+# Pushes to main (and v* tags) also publish one GitHub release with all jars, named after mod_version in
+# gradle.properties. A version is released once: bump mod_version to publish a new release.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build all Minecraft versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      # Minecraft up to 1.21.11 needs Java 21, 26.x needs Java 25. Gradle finds both through
+      # org.gradle.java.installations.fromEnv instead of downloading them.
+      - name: Set up Java 21 and 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build every loader and Minecraft version
+        run: ./gradlew build collectJars --stacktrace -Porg.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64
+
+      - name: List the release jars
+        run: ls -l build/libs
+
+      - name: Upload the release jars
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-jars
+          path: build/libs/*.jar
+          if-no-files-found: error
+
+  release:
+    name: Release all versions together
+    needs: build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Decide the release tag
+        id: tag
+        run: |
+          version=$(sed -n 's/^mod_version=//p' gradle.properties | tr -d '\r')
+          tag="v$version"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "$tag" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match mod_version $version in gradle.properties"
+            exit 1
+          fi
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "::notice::Release $tag already exists. Bump mod_version in gradle.properties to publish a new release."
+            echo "create=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "create=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download the release jars
+        if: steps.tag.outputs.create == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: release-jars
+          path: release
+
+      - name: Write the release notes
+        if: steps.tag.outputs.create == 'true'
+        run: python3 .github/release-notes.py release > release-notes.md
+
+      - name: Create the release
+        if: steps.tag.outputs.create == 'true'
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          name=$(python3 -c 'import json; print(json.load(open("fabric/src/main/resources/fabric.mod.json"))["name"])')
+          gh release create "$TAG" release/*.jar \
+            --title "$name $VERSION" \
+            --notes-file release-notes.md \
+            --target "$GITHUB_SHA"

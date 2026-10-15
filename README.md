@@ -66,6 +66,17 @@ Every loader × version pair is its own Gradle project (a node), for example `:f
 
 The first build downloads every Minecraft version, its mappings and two JDKs (21 and 25) and takes several minutes. Later builds are incremental.
 
+## Builds and releases (GitHub Actions)
+
+`.github/workflows/build.yml` builds the release jar of every loader and Minecraft version on each push and pull request (`./gradlew build collectJars` on Ubuntu with Java 21 and 25). The 20 jars are attached to the run as the `release-jars` artifact.
+
+Pushes to `main` also publish them together as **one GitHub release**, tagged `v<mod_version>` from `gradle.properties`. Each version is released once:
+
+1. Bump `mod_version` in `gradle.properties`.
+2. Push to `main`. The workflow builds, creates the tag `v<mod_version>` and a release with all jars. The release notes list every jar with its loader and declared Minecraft versions (`.github/release-notes.py`).
+
+Pushing a tag `v<mod_version>` yourself does the same; a tag that does not match `mod_version` fails the run. If the release already exists, the run only builds.
+
 ## Obfuscated and unobfuscated versions
 
 Minecraft up to 1.21.11 is obfuscated, 26.1 and later is not. `gradle/shared.gradle` picks the Loom plugin per node:
